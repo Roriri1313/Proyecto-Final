@@ -178,48 +178,49 @@ function App() {
       return
     }
 
+    // Guardado local inmediato (para no perder reportes aunque la red falle).
+    const reporteFinal = {
+      ...reporte,
+      elemento: elementoFinal,
+      id: crypto.randomUUID(),
+      fecha: new Date().toLocaleString(),
+    }
+    setAulas((prev) =>
+      prev.map((a) =>
+        a.id === aulaId
+          ? {
+              ...a,
+              estado: 'Requiere revision',
+              prioridad: reporte.prioridad,
+              reportes: [...a.reportes, reporteFinal],
+            }
+          : a,
+      ),
+    )
+    setFormReporte((prev) => ({
+      ...prev,
+      [aulaId]: { elemento: '', elementoOtro: '', detalle: '', prioridad: 'media' },
+    }))
+
     if (!navigator.onLine) {
       setEstadoRed('inestable')
-      setAvisoRed('Conexion inestable: no fue posible guardar el reporte.')
+      setAvisoRed('Conexion inestable: el reporte se guardo localmente. Sincroniza cuando vuelva internet.')
       return
     }
 
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2800))
-    const fakeRequest = new Promise((resolve) =>
-      setTimeout(() => resolve({ ok: true }), 1000 + Math.random() * 2500),
-    )
+    // Simulacion de sincronizacion (para mostrar estados "inestable/timeout" sin bloquear el uso).
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6500))
+    const fakeSync = new Promise((resolve) => setTimeout(() => resolve({ ok: true }), 800 + Math.random() * 900))
 
     try {
-      await Promise.race([fakeRequest, timeout])
-      setAulas((prev) =>
-        prev.map((a) =>
-          a.id === aulaId
-            ? {
-                ...a,
-                estado: 'Requiere revision',
-                prioridad: reporte.prioridad,
-                reportes: [
-                  ...a.reportes,
-                  {
-                    ...reporte,
-                    elemento: elementoFinal,
-                    id: crypto.randomUUID(),
-                    fecha: new Date().toLocaleString(),
-                  },
-                ],
-              }
-            : a,
-        ),
-      )
-      setFormReporte((prev) => ({
-        ...prev,
-        [aulaId]: { elemento: '', elementoOtro: '', detalle: '', prioridad: 'media' },
-      }))
+      // De forma ocasional forzamos un retraso para simular "timeout".
+      const induceTimeout = Math.random() < 0.12
+      await Promise.race([induceTimeout ? timeout : fakeSync, timeout])
       setAvisoRed('Reporte guardado correctamente.')
       setEstadoRed('estable')
     } catch {
       setEstadoRed('timeout')
-      setAvisoRed('Tiempo de espera agotado al guardar. Intenta de nuevo.')
+      setAvisoRed('Tiempo de espera agotado al guardar. El reporte quedo guardado localmente; reintenta mas tarde.')
     }
   }
 
